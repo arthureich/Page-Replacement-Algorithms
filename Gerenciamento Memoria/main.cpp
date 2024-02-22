@@ -28,8 +28,11 @@ int main(int argc, char const *argv[])
         return -1;
     }
 
+    // Caminho dos traces.
+    std::string logPath = "./logs/" + std::string(argv[1]);
+
     // Verifica abertura do log pra leitura.
-    std::ifstream trace(argv[1]);
+    std::ifstream trace(logPath);
     if (!trace.is_open())
     {
         return -1;
@@ -44,6 +47,7 @@ int main(int argc, char const *argv[])
     for (int i = 0; i < 1; i++)
     {
         std::cout << referenceString[i] << "\n";
+        std::cout << referenceString.size() << "\n";
     }
 
     trace.close();
@@ -62,7 +66,8 @@ std::vector<u32> createReferenceString(std::ifstream &trace, unsigned int &logSi
     std::string Address;
     std::string preAddress = "";
 
-    while (trace >> Address)
+    // Leitura e tratamendo dos dados.
+    while (std::getline(trace, Address) && !trace.eof())
     {
         // Ajusta enderecos com zeros omitidos a esquerda.
         if (Address.size() < 8)

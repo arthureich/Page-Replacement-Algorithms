@@ -13,6 +13,7 @@
 #include <fstream>
 #include <cstdint> // Define uint_32t
 #include <iomanip>
+#include <chrono>
 #include <algorithm>
 
 using u32 = uint32_t; // Definindo u32 para enderecos 32 bits.
@@ -21,6 +22,8 @@ using u32 = uint32_t; // Definindo u32 para enderecos 32 bits.
 std::vector<u32> createReferenceString(std::ifstream &);
 int LRU(std::vector<u32> &referenceString, int frameSize);
 int findLRUIndex(const std::vector<int> &recents);
+int OPT(std::vector<u32> &referenceString, int frameSize);
+int findOPTIndex(std::vector<u32> &frames, std::vector<u32> &referenceString, int start);
 
 int main(int argc, char const *argv[])
 {
@@ -73,6 +76,13 @@ int main(int argc, char const *argv[])
         std::cout << "Tamanho Frames Livres: " << framesSize
                   << " | Numero de Falhas de Pagina: " << pageFautls << "\n";
     }
+    std::cout << "OPT (Optimal Page Replacement)\n";
+    for (int framesSize = 4; framesSize <= 32; framesSize *= 2)
+    {
+        int pageFaults = OPT(referenceString, framesSize);
+        std::cout << "Frame Size: " << framesSize
+                  << " | Number of Page Faults: " << pageFaults << "\n";
+    }
 
     trace.close();
 
@@ -117,13 +127,13 @@ int LRU(std::vector<u32> &referenceString, int frameSize)
     std::vector<int> recents(frameSize, 0); // Tempos Recentes para LRU.
     int pageFaults = 0;                     // Numero de Falhas de Pagina.
     int realTime = 0;                       // Tempo para LRU.
-
+    auto start = std::chrono::high_resolution_clock::now();
     // Percorre cada endereco de pagina no referencestring.
     for (u32 addr : referenceString)
     {
         // Incrementa o tempo.
         realTime += 1;
-
+    
         // Se endereco nao estiver presente nos frames.
         if (std::find(frames.begin(), frames.end(), addr) == frames.end())
         {
@@ -146,7 +156,9 @@ int LRU(std::vector<u32> &referenceString, int frameSize)
             recents[index] = realTime;
         }
     }
-
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    std::cout << "Tempo Gasto Algoritmo LRU = " << duration << " ms\n";
     return pageFaults;
 }
 
@@ -158,4 +170,79 @@ int findLRUIndex(const std::vector<int> &recents)
     // Retorna o indice do elemento LRU,
     // calculando sua distancia do inicio do array ate ele mesmo.
     return std::distance(recents.begin(), min_it);
+}
+
+// Função para encontrar o índice da página no quadro que será utilizada mais adiante no futuro.
+int findOPTIndex(std::vector<u32> &frames, std::vector<u32> &referenceString, int start) {
+  // Vetor para armazenar a primeira ocorrência de cada página na string de referência após o índice atual.
+  std::vector<int> indices(frames.size(), INT32_MAX);
+
+  // Loop por cada quadro.
+  for (int i = 0; i < frames.size(); i++) {
+    // Loop pela string de referência começando a partir do elemento após a posição atual.
+    for (int j = start; j < referenceString.size(); j++) {
+      // Se a página no quadro for encontrada na string de referência, atualize seu índice no array 'indices'.
+      if (frames[i] == referenceString[j]) {
+        indices[i] = j;
+        break; // Sair do loop interno quando a página for encontrada.
+      }
+    }
+  }
+
+  // Encontre o índice da página no quadro que será utilizada mais adiante no futuro (com o índice mais alto).
+  auto max_it = std::max_element(indices.begin(), indices.end());
+
+  // Retorne a posição relativa do elemento mais distante no array 'indices'.
+  return std::distance(indices.begin(), max_it);
+}
+
+// Função para calcular o número de falhas de página usando o algoritmo Otimo (OPT).
+int OPT(std::vector<u32> &referenceString, int frameSize) {
+  // Iniciar a medição do tempo.
+  auto start = std::chrono::high_resolution_clock::now();
+
+  // Inicializar o array de quadros com slots vazios (-1).
+  std::vector<u32> frames(frameSize, -1);
+
+  // Contador de falhas de página.
+  int pageFaults = 0;
+
+  // Variável para acompanhar o progresso (impresso a cada 10000 iterações).
+  int progress = 0;
+  int total = referenceString.size();
+
+  // Loop por cada elemento na string de referência.
+  for (int i = 0; i < referenceString.size(); i++) {
+    // Verifique se a página não está presente em nenhum quadro.
+    if (std::find(frames.begin(), frames.end(), referenceString[i]) == frames.end()) {
+      // Se houver um slot vazio (-1) nos quadros, preencha-o com a página atual.
+      if (std::find(frames.begin(), frames.end(), -1) != frames.end()) {
+        auto it = std::find(frames.begin(), frames.end(), -1);
+        *it = referenceString[i];
+      } else {
+        // Se todos os quadros estiverem cheios, use a função `findOPTIndex` para encontrar a página no quadro que será utilizada mais adiante no futuro e substitua-a pela página atual.
+        int indexOPT = findOPTIndex(frames, referenceString, i + 1);
+        frames[indexOPT] = referenceString[i];
+      }
+      // Incrementar o contador de falhas de página.
+      pageFaults += 1;
+    }
+
+    // Imprimir o progresso a cada 10000 iterações.
+    if (i % 10000 == 0) {
+      progress = (i * 100) / total;
+      std::cout << "Progresso: " << progress << "%\n";
+    }
+  }
+
+  // Imprimir o progresso final (100%).
+  std::cout << "Progresso: 100%\n";
+
+  // Finalizar a medição do tempo e calcular o tempo de execução em milissegundos.
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+  std::cout << "Tempo Gasto Algoritmo OPT = " << duration << " ms\n";
+
+  // Retornar o número de falhas de página.
+  return pageFaults;
 }

@@ -47,7 +47,7 @@ int main(int argc, char const *argv[])
 
     // Armazenando tamanho original do log.
     unsigned int originalLogSize = 0;
-    if (std::string(argv[1]) == "trace1" || std::string(argv[1]) == "trace2" || std::string(argv[1]) == "trace3" || std::string(argv[1]) == "trace1x" || std::string(argv[1]) == "trace2x" || std::string(argv[1]) == "trace3x")
+    if (std::string(argv[1]) == "trace1" || std::string(argv[1]) == "trace2" || std::string(argv[1]) == "trace3")
     {
         originalLogSize = 2095679;
     }

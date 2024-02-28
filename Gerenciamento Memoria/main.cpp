@@ -1,6 +1,6 @@
 /**
  * @file main.cpp
- * @author Arthur Eich, Luiz Eduardo
+ * @author Arthur Eich, Luiz Eduardo, Pedro Berti
  * @brief Algoritmo para determinar o numero de falhas de página
  *        utilizando os algoritmos de substituicao LRU e OPT.
  * @version 0.1
@@ -14,12 +14,13 @@
 #include <cstdint> // Define uint_32t
 #include <iomanip>
 #include <chrono>
+#include <unordered_set>
 #include <algorithm>
 
 using u32 = uint32_t; // Definindo u32 para enderecos 32 bits.
 
 // Assinatura dos métodos.
-std::vector<u32> createReferenceString(std::ifstream &);
+std::vector<u32> createReferenceString(std::ifstream &trace, double proportion, unsigned int originalLogSize);
 int LRU(std::vector<u32> &referenceString, int frameSize);
 int findLRUIndex(const std::vector<int> &recents);
 int OPT(std::vector<u32> &referenceString, int frameSize);
@@ -28,9 +29,9 @@ int findOPTIndex(std::vector<u32> &frames, std::vector<u32> &referenceString, in
 int main(int argc, char const *argv[])
 {
     // Verifica parametros da Execucao.
-    if (argc != 2)
+    if (argc != 3)
     {
-        std::cout << "Execute: main.cpp nome-do-arquivo-trace\n";
+        std::cout << "Execute: main.cpp nome-do-arquivo-trace proporcao-reference-string\n";
         return -1;
     }
 
@@ -46,7 +47,7 @@ int main(int argc, char const *argv[])
 
     // Armazenando tamanho original do log.
     unsigned int originalLogSize = 0;
-    if (std::string(argv[1]) == "trace1" || std::string(argv[1]) == "trace2" || std::string(argv[1]) == "trace3")
+    if (std::string(argv[1]) == "trace1" || std::string(argv[1]) == "trace2" || std::string(argv[1]) == "trace3" || std::string(argv[1]) == "trace1x" || std::string(argv[1]) == "trace2x" || std::string(argv[1]) == "trace3x")
     {
         originalLogSize = 2095679;
     }
@@ -54,12 +55,13 @@ int main(int argc, char const *argv[])
     {
         originalLogSize = 6287038;
     }
-
+    // Lendo a proporção da reference string em relação ao log original.
+    double proportion = std::stod(argv[2]);
     // Cria reference string.
-    std::vector<u32> referenceString = createReferenceString(trace);
+    std::vector<u32> referenceString = createReferenceString(trace, proportion, originalLogSize);
 
-    // Proporcao de acesso a memoria da reference string em relacao ao log original.
-    double proportion = double(referenceString.size()) / originalLogSize;
+     // Proporcao de acesso a memoria da reference string em relacao ao log original.
+    proportion = double(referenceString.size()) / originalLogSize;
 
     std::cout << "Tamanho do referenceString: " << referenceString.size() << "\n";
     std::cout << "Tamanho do Log Original: " << originalLogSize << "\n";
@@ -85,12 +87,11 @@ int main(int argc, char const *argv[])
     }
 
     trace.close();
-
     return 0;
 }
 
 // Método que cria e retorna o reference string.
-std::vector<u32> createReferenceString(std::ifstream &trace)
+std::vector<u32> createReferenceString(std::ifstream &trace, double proportion, unsigned int originalLogSize)
 {
     // Armazena o reference string.
     std::vector<u32> referenceString;
@@ -98,9 +99,18 @@ std::vector<u32> createReferenceString(std::ifstream &trace)
     u32 Address;
     u32 preAddress = UINT32_MAX;
 
+    // Calcula quantos elementos devem ser lidos com base na proporção.
+    int elementsToRead = static_cast<int>(originalLogSize * proportion);
+
     // Leitura e tratamendo dos dados.
-    while (trace >> std::hex >> Address && !trace.eof())
+    for (int i = 0; i < elementsToRead; ++i)
     {
+        // Leitura do endereço hexadecimal.
+        if (!(trace >> std::hex >> Address))
+        {
+            break; // Se a leitura falhar ou chegar ao final do arquivo, sai do loop.
+        }
+
         // Desloca 12 bits para a direita removendo o deslocamento e extraindo a pagina.
         Address >>= 12;
 
@@ -119,6 +129,7 @@ std::vector<u32> createReferenceString(std::ifstream &trace)
 
     return referenceString;
 }
+
 
 // Metodo que retorna o numero de falhas de pagina utilizando o algoritmo LRU.
 int LRU(std::vector<u32> &referenceString, int frameSize)
@@ -203,7 +214,8 @@ int OPT(std::vector<u32> &referenceString, int frameSize) {
 
   // Inicializar o array de quadros com slots vazios (-1).
   std::vector<u32> frames(frameSize, -1);
-
+  std::unordered_set<u32> frameSet;
+  
   // Contador de falhas de página.
   int pageFaults = 0;
 
@@ -214,19 +226,16 @@ int OPT(std::vector<u32> &referenceString, int frameSize) {
   // Loop por cada elemento na string de referência.
   for (int i = 0; i < referenceString.size(); i++) {
     // Verifique se a página não está presente em nenhum quadro.
-    if (std::find(frames.begin(), frames.end(), referenceString[i]) == frames.end()) {
-      // Se houver um slot vazio (-1) nos quadros, preencha-o com a página atual.
-      if (std::find(frames.begin(), frames.end(), -1) != frames.end()) {
-        auto it = std::find(frames.begin(), frames.end(), -1);
-        *it = referenceString[i];
-      } else {
-        // Se todos os quadros estiverem cheios, use a função `findOPTIndex` para encontrar a página no quadro que será utilizada mais adiante no futuro e substitua-a pela página atual.
-        int indexOPT = findOPTIndex(frames, referenceString, i + 1);
-        frames[indexOPT] = referenceString[i];
-      }
-      // Incrementar o contador de falhas de página.
-      pageFaults += 1;
-    }
+	if (find(frames.begin(), frames.end(), referenceString[i]) == frames.end()) {
+        if (find(frames.begin(), frames.end(), -1) != frames.end()) {
+            auto it = find(frames.begin(), frames.end(), -1);
+            *it = referenceString[i];
+            } else {
+                int indexOPT = findOPTIndex(frames, referenceString, i + 1);
+                frames[indexOPT] = referenceString[i];
+            }
+            pageFaults++;
+        }
 
     // Imprimir o progresso a cada 10000 iterações.
     if (i % 10000 == 0) {

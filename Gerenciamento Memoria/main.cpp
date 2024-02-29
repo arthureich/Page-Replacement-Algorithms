@@ -14,7 +14,6 @@
 #include <cstdint> // Define uint_32t
 #include <iomanip>
 #include <chrono>
-#include <unordered_set>
 #include <algorithm>
 
 using u32 = uint32_t; // Definindo u32 para enderecos 32 bits.

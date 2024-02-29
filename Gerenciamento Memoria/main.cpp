@@ -214,7 +214,6 @@ int OPT(std::vector<u32> &referenceString, int frameSize) {
 
   // Inicializar o array de quadros com slots vazios (-1).
   std::vector<u32> frames(frameSize, -1);
-  std::unordered_set<u32> frameSet;
   
   // Contador de falhas de página.
   int pageFaults = 0;
@@ -227,10 +226,13 @@ int OPT(std::vector<u32> &referenceString, int frameSize) {
   for (int i = 0; i < referenceString.size(); i++) {
     // Verifique se a página não está presente em nenhum quadro.
 	if (find(frames.begin(), frames.end(), referenceString[i]) == frames.end()) {
+		// Verifica se há frame livre
         if (find(frames.begin(), frames.end(), -1) != frames.end()) {
+			// Encontra frame livre e carrega a página
             auto it = find(frames.begin(), frames.end(), -1);
             *it = referenceString[i];
             } else {
+				// Encontra frame para substituir a página
                 int indexOPT = findOPTIndex(frames, referenceString, i + 1);
                 frames[indexOPT] = referenceString[i];
             }
